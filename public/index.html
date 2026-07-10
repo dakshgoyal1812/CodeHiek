@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CODEVIEW</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background: #f5f5f0;
+    font-family: 'Space Grotesk', sans-serif;
+    color: #1a1a1a;
+  }
+
+  #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+
+  /* HEADER */
+  header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    height: 80px;
+    padding: 0 32px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 50;
+    background: #ffffff;
+    border-bottom: 4px solid #1a1a1a;
+  }
+  .header-left { display: flex; align-items: center; gap: 40px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .logo {
+    width: 44px; height: 44px; background: #d12b2b; color: #ffffff;
+    display: flex; align-items: center; justify-content: center;
+    border: 3px solid #1a1a1a; box-shadow: 3px 3px 0px 0px rgba(26,26,26,1);
+  }
+  .brand h1 { font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: -1px; }
+  .header-center { flex: 1; max-width: 560px; position: relative; }
+  .header-center .search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 20px; color: #1a1a1a; pointer-events: none;
+  }
+  .header-right { display: flex; flex-direction: row; align-items: center; gap: 12px; flex-shrink: 0; }
+  .header-divider { width: 3px; height: 32px; background: #1a1a1a; }
+
+  /* STATS BAR */
+  #stats-bar {
+    display: none;
+    position: fixed; top: 80px; left: 0; right: 0; height: 36px;
+    background: #ffffff; border-bottom: 3px solid #1a1a1a; z-index: 40;
+    align-items: center; gap: 16px; padding: 0 20px;
+    font-size: 12px; font-weight: 500; overflow: hidden; white-space: nowrap;
+  }
+  #stats-bar img.avatar { width: 22px; height: 22px; border: 2px solid #1a1a1a; }
+  #stats-bar .stat { display: flex; align-items: center; gap: 5px; }
+  #stats-bar .stat .material-symbols-outlined { font-size: 16px; }
+  #stats-bar .repo-name { font-weight: 700; text-transform: uppercase; }
+  #stats-bar .repo-desc { color: #555; font-weight: 400; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  #stats-bar .cached-badge { background: #eec900; border: 2px solid #1a1a1a; padding: 1px 8px; font-weight: 700; text-transform: uppercase; font-size: 10px; }
+  #stats-bar .gh-link { margin-left: auto; color: #1a1a1a; text-decoration: none; display: flex; align-items: center; gap: 4px; font-weight: 700; text-transform: uppercase; }
+
+  /* MAIN LAYOUT */
+  .main-layout { display: flex; flex: 1; margin-top: 80px; margin-bottom: 40px; overflow: hidden; }
+  .main-layout.with-stats { margin-top: 116px; }
+
+  .sidebar {
+    width: 288px; min-width: 288px; flex-shrink: 0;
+    border-right: 4px solid #1a1a1a; background: #f5f5f0;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .sidebar-label {
+    padding: 14px 16px 10px; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 3px solid #1a1a1a;
+  }
+  .sidebar-label .material-symbols-outlined { font-size: 18px; }
+  #tree-search-wrap { display: none; padding: 10px; border-bottom: 3px solid #1a1a1a; }
+  #tree-search {
+    width: 100%; border: 3px solid #1a1a1a; background: #ffffff;
+    padding: 7px 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500;
+  }
+  #tree-search:focus { outline: none; background: #fffde0; }
+  #dynamic-tree { flex: 1; overflow-y: auto; padding: 8px; }
+
+  .placeholder-tree { padding: 8px; }
+  .placeholder-item {
+    opacity: 0.35; display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; margin-bottom: 6px; border: 3px solid #1a1a1a; background: #ffffff;
+    font-size: 13px; font-weight: 500;
+  }
+
+  .tree-node { user-select: none; }
+  .tree-row {
+    display: flex; align-items: center; gap: 7px; padding: 6px 8px; margin-bottom: 4px;
+    border: 3px solid #1a1a1a; background: #ffffff; cursor: pointer; font-size: 13px; font-weight: 500;
+    box-shadow: 2px 2px 0px 0px rgba(26,26,26,1); transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .tree-row:hover { transform: translate(-2px,-2px); box-shadow: 4px 4px 0px 0px rgba(26,26,26,1); }
+  .tree-row .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
+  .tree-row .tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-row .chevron { margin-left: auto; font-size: 16px; transition: transform 0.15s; }
+  .tree-row.open .chevron { transform: rotate(90deg); }
+  .tree-children { margin-left: 14px; }
+
+  .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+  /* LANDING */
+  #landing-canvas {
+    flex: 1; overflow-y: auto; padding: 48px;
+    display: flex; align-items: flex-start; justify-content: center;
+    background: rgba(245,245,240,0.82);
+  }
+  #landing-inner { max-width: 768px; width: 100%; text-align: center; padding-top: 40px; }
+  .landing-icon {
+    width: 128px; height: 128px; background: #eec900; margin: 0 auto 32px;
+    display: flex; align-items: center; justify-content: center;
+    border: 3px solid #1a1a1a; box-shadow: 8px 8px 0px 0px rgba(26,26,26,1);
+  }
+  .landing-icon .material-symbols-outlined { font-size: 72px; color: #1a1a1a; }
+  #landing-inner h2 { font-size: 72px; font-weight: 700; text-transform: uppercase; letter-spacing: -3px; line-height: 0.95; }
+  .landing-subtitle {
+    display: inline-block; margin: 24px 0 40px; padding: 10px 20px;
+    background: #d12b2b; color: #ffffff; border: 3px solid #1a1a1a;
+    box-shadow: 4px 4px 0px 0px rgba(26,26,26,1);
+    font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .instruction-cards { display: flex; flex-direction: column; gap: 16px; text-align: left; }
+  .instruction-card { display: flex; align-items: center; gap: 16px; padding: 16px 18px; }
+  .instruction-num {
+    width: 44px; height: 44px; flex-shrink: 0; color: #ffffff;
+    display: flex; align-items: center; justify-content: center;
+    border: 3px solid #1a1a1a; font-size: 20px; font-weight: 700;
+  }
+  .instruction-card p { font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* EDITOR */
+  #editor-canvas { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .editor-top { flex: 1; display: flex; overflow: hidden; }
+  .editor-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  #tabs-bar {
+    display: flex; align-items: stretch; height: 40px; background: #ffffff;
+    border-bottom: 3px solid #1a1a1a; overflow-x: auto; flex-shrink: 0;
+  }
+  .tab {
+    display: flex; align-items: center; gap: 8px; padding: 0 14px;
+    border-right: 3px solid #1a1a1a; cursor: pointer; font-size: 12px; font-weight: 700;
+    white-space: nowrap; background: #f5f5f0; text-transform: uppercase;
+  }
+  .tab.active { background: #eec900; }
+  .tab .material-symbols-outlined { font-size: 15px; }
+  .tab .close-tab { font-size: 16px; opacity: 0.6; }
+  .tab .close-tab:hover { opacity: 1; }
+
+  #monaco-container { flex: 1; min-height: 0; }
+
+  /* PREVIEW PANEL */
+  #preview-panel { width: 33%; min-width: 280px; display: none; flex-direction: column; border-left: 4px solid #1a1a1a; }
+  .preview-head { height: 36px; background: #eec900; border-bottom: 3px solid #1a1a1a; display: flex; align-items: center; padding: 0 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  #preview-iframe { flex: 1; border: none; background: #ffffff; }
+
+  /* TERMINAL */
+  #terminal-panel { height: 200px; flex-shrink: 0; background: #1a1a1a; display: flex; flex-direction: column; border-top: 4px solid #1a1a1a; }
+  .terminal-head { height: 34px; display: flex; align-items: center; gap: 14px; padding: 0 14px; background: #1a1a1a; border-bottom: 2px solid #333; }
+  .terminal-head .term-title { color: #eec900; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace; }
+  #running-indicator { display: none; color: #d12b2b; font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
+  .terminal-head .clear-btn { margin-left: auto; background: none; border: 2px solid #f5f5f0; color: #f5f5f0; font-family: 'Space Grotesk'; font-size: 11px; font-weight: 700; padding: 3px 10px; cursor: pointer; text-transform: uppercase; }
+  .terminal-head .clear-btn:hover { background: #d12b2b; border-color: #d12b2b; }
+
+  /* FIX 3: Updated terminal container CSS */
+  #terminal-container {
+    flex: 1;
+    overflow: hidden;
+    padding: 4px;
+  }
+  #terminal-container .xterm { height: 100% !important; }
+  #terminal-container .xterm-viewport { height: 100% !important; }
+  #terminal-container .xterm-screen { height: 100% !important; }
+
+  /* FOOTER */
+  footer {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 40px;
+    background: #ffffff; border-top: 4px solid #1a1a1a;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; font-size: 11px; font-weight: 700; text-transform: uppercase; z-index: 50;
+  }
+  footer .foot-group { display: flex; align-items: center; gap: 18px; }
+  footer .foot-item { display: flex; align-items: center; gap: 5px; }
+  footer .foot-item .material-symbols-outlined { font-size: 15px; }
+  footer .branch { background: #1e40af; color: #ffffff; padding: 3px 10px; border: 2px solid #1a1a1a; }
+
+  /* CONFIG PANEL */
+  #config-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 360px; z-index: 60;
+    background: #f5f5f0; border-left: 4px solid #1a1a1a;
+    transform: translateX(110%); transition: transform 0.25s cubic-bezier(0.16,1,0.3,1);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #config-panel.open { transform: translateX(0); }
+  .config-head { display: flex; align-items: center; justify-content: space-between; padding: 20px; border-bottom: 4px solid #1a1a1a; background: #ffffff; }
+  .config-head h3 { font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.5px; }
+  .config-close { background: #1a1a1a; color: #fff; border: none; width: 32px; height: 32px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .config-body { flex: 1; overflow-y: auto; padding: 20px; }
+  .config-section { margin-bottom: 26px; }
+  .config-section .sec-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .config-section .sec-label .material-symbols-outlined { font-size: 17px; }
+  .config-input { width: 100%; border: 3px solid #1a1a1a; background: #ffffff; padding: 9px 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500; }
+  .config-input:focus { outline: none; background: #fffde0; }
+  select.config-input { font-family: 'Space Grotesk'; font-weight: 700; text-transform: uppercase; }
+  .env-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .env-row input { flex: 1; border: 3px solid #1a1a1a; background: #ffffff; padding: 7px 9px; font-family: 'JetBrains Mono', monospace; font-size: 12px; min-width: 0; }
+  .env-row input:focus { outline: none; background: #fffde0; }
+  .env-del { background: #d12b2b; color: #fff; border: 3px solid #1a1a1a; width: 34px; flex-shrink: 0; cursor: pointer; font-size: 16px; }
+  .config-mini-btn { background: #ffffff; border: 3px solid #1a1a1a; padding: 6px 12px; font-family: 'Space Grotesk'; font-weight: 700; font-size: 11px; text-transform: uppercase; cursor: pointer; box-shadow: 2px 2px 0 0 rgba(26,26,26,1); }
+  .config-mini-btn:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 0 rgba(26,26,26,1); }
+  .config-foot { padding: 16px 20px; border-top: 4px solid #1a1a1a; background: #ffffff; }
+
+  /* TOAST */
+  #toast-container { position: fixed; top: 92px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
+  .toast {
+    background: #ffffff; border: 3px solid #1a1a1a; padding: 12px 18px;
+    font-size: 13px; font-weight: 700; min-width: 200px; max-width: 340px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    animation: toast-in 0.25s cubic-bezier(0.16,1,0.3,1);
+  }
+  .toast.error { box-shadow: 4px 4px 0px 0px #d12b2b; }
+  .toast.warning { box-shadow: 4px 4px 0px 0px #eec900; }
+  .toast.success { box-shadow: 4px 4px 0px 0px #1e40af; }
+  .toast.out { animation: toast-out 0.25s cubic-bezier(0.7,0,0.84,0) forwards; }
+  @keyframes toast-in { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes toast-out { to { transform: translateX(120%); opacity: 0; } }
+
+  /* BRUTALIST CLASSES */
+  .brutalist-border { border: 3px solid #1a1a1a; }
+  .brutalist-card { background: #ffffff; border: 3px solid #1a1a1a; box-shadow: 4px 4px 0px 0px rgba(26,26,26,1); transition: all 0.2s ease-in-out; }
+  .brutalist-card:hover { transform: translate(-4px,-4px); box-shadow: 8px 8px 0px 0px rgba(26,26,26,1); }
+  .btn-brutalist { background: #ffffff; color: #1a1a1a; font-weight: 700; border: 3px solid #1a1a1a; box-shadow: 4px 4px 0px 0px rgba(26,26,26,1); transition: all 0.1s; cursor: pointer; padding: 8px 20px; font-family: 'Space Grotesk'; text-transform: uppercase; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-brutalist:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0px 0px rgba(26,26,26,1); }
+  .btn-brutalist:active { transform: translate(2px,2px); box-shadow: 0px 0px 0px 0px rgba(26,26,26,1); }
+  .btn-brutalist:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: 4px 4px 0px 0px rgba(26,26,26,1); transform: none; }
+  .btn-brutalist .material-symbols-outlined { font-size: 18px; }
+  .btn-red { background: #d12b2b; color: #ffffff; }
+  .btn-blue { background: #1e40af; color: #ffffff; }
+  .icon-btn { padding: 8px; }
+  .url-input { background: #ffffff; border: 3px solid #1a1a1a; color: #1a1a1a; font-family: 'Space Grotesk'; font-weight: 700; font-size: 13px; padding: 10px 16px 10px 40px; width: 100%; }
+  .url-input:focus { outline: none; background: #fffde0; box-shadow: 6px 6px 0px 0px #eec900; }
+  .active-nav-item { background: #1e40af !important; color: #ffffff !important; border: 3px solid #1a1a1a; box-shadow: 2px 2px 0px 0px rgba(26,26,26,1); }
+  .active-nav-item .material-symbols-outlined { color: #ffffff !important; }
+  .pulse-active { animation: brutalist-blink 0.5s infinite alternate; color: #fff !important; }
+  @keyframes brutalist-blink { from { background-color: #d12b2b; } to { background-color: #1a1a1a; } }
+
+  /* MOBILE */
+  #menu-toggle { display: none; }
+  @media (max-width: 900px) {
+    .header-center { display: none; }
+    #menu-toggle { display: inline-flex; }
+    .sidebar { position: fixed; top: 80px; bottom: 40px; left: 0; z-index: 45; transform: translateX(-110%); transition: transform 0.25s cubic-bezier(0.16,1,0.3,1); }
+    .sidebar.open { transform: translateX(0); }
+    #preview-panel { display: none !important; }
+    #landing-inner h2 { font-size: 44px; }
+    .brand h1 { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;"></canvas>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <button id="menu-toggle" class="btn-brutalist icon-btn" title="Menu"><span class="material-symbols-outlined">menu</span></button>
+    <div class="brand">
+      <div class="logo"><span class="material-symbols-outlined">terminal</span></div>
+      <h1>CODEVIEW</h1>
+    </div>
+  </div>
+  <div class="header-center">
+    <span class="material-symbols-outlined search-icon">search</span>
+    <input id="url-input" class="url-input" type="text" placeholder="PASTE GITHUB REPO URL..." autocomplete="off" />
+  </div>
+  <div class="header-right">
+    <button id="loadBtn" class="btn-brutalist btn-red"><span class="material-symbols-outlined">download</span>LOAD</button>
+    <button id="shareBtn" class="btn-brutalist btn-blue" style="display:none;"><span class="material-symbols-outlined">share</span>SHARE</button>
+    <button id="configBtn" class="btn-brutalist icon-btn" title="Config"><span class="material-symbols-outlined">tune</span></button>
+    <div class="header-divider"></div>
+    <button id="runBtn" class="btn-brutalist" disabled><span class="material-symbols-outlined">play_arrow</span>RUN</button>
+  </div>
+</header>
+
+<!-- STATS BAR -->
+<div id="stats-bar"></div>
+
+<!-- MAIN LAYOUT -->
+<div class="main-layout" id="main-layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-label"><span>Explorer</span><span class="material-symbols-outlined">account_tree</span></div>
+    <div id="tree-search-wrap"><input id="tree-search" type="text" placeholder="FILTER FILES..." autocomplete="off" /></div>
+    <div id="dynamic-tree">
+      <div class="placeholder-tree">
+        <div class="placeholder-item"><span class="material-symbols-outlined">folder</span> src</div>
+        <div class="placeholder-item" style="margin-left:14px;"><span class="material-symbols-outlined">description</span> index.js</div>
+        <div class="placeholder-item" style="margin-left:14px;"><span class="material-symbols-outlined">description</span> app.js</div>
+        <div class="placeholder-item"><span class="material-symbols-outlined">folder</span> public</div>
+        <div class="placeholder-item"><span class="material-symbols-outlined">description</span> README.md</div>
+        <div class="placeholder-item"><span class="material-symbols-outlined">description</span> package.json</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <!-- LANDING -->
+    <div id="landing-canvas">
+      <div id="landing-inner">
+        <div class="landing-icon"><span class="material-symbols-outlined">code</span></div>
+        <h2>CODEVIEW</h2>
+        <div class="landing-subtitle">Delightful Repository Exploration.</div>
+        <div class="instruction-cards">
+          <div class="brutalist-card instruction-card"><div class="instruction-num" style="background:#d12b2b;">1</div><p>Paste a GitHub repository URL into the search bar above.</p></div>
+          <div class="brutalist-card instruction-card"><div class="instruction-num" style="background:#eec900;color:#1a1a1a;">2</div><p>Click load to fetch the repository structure and metadata.</p></div>
+          <div class="brutalist-card instruction-card"><div class="instruction-num" style="background:#1e40af;">3</div><p>Browse and edit files in the explorer tree on the left.</p></div>
+          <div class="brutalist-card instruction-card"><div class="instruction-num" style="background:#1a1a1a;">4</div><p>Edit files with syntax highlighting in the Monaco editor.</p></div>
+          <div class="brutalist-card instruction-card"><div class="instruction-num" style="background:#d12b2b;">5</div><p>Hit run for a live preview and terminal output.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDITOR -->
+    <div id="editor-canvas">
+      <div class="editor-top">
+        <div class="editor-col">
+          <div id="tabs-bar"></div>
+          <div id="monaco-container"></div>
+        </div>
+        <div id="preview-panel">
+          <div class="preview-head">Live Preview</div>
+          <iframe id="preview-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+      </div>
+      <div id="terminal-panel">
+        <div class="terminal-head">
+          <span class="term-title">Terminal</span>
+          <span id="running-indicator">● RUNNING</span>
+          <button class="clear-btn" id="clearTermBtn">Clear</button>
+        </div>
+        <div id="terminal-container"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="foot-group">
+    <span class="foot-item branch" id="foot-branch"><span class="material-symbols-outlined">fork_right</span><span id="foot-branch-name">main</span></span>
+    <span class="foot-item"><span class="material-symbols-outlined" style="color:#d12b2b;">error</span><span id="foot-errors">0</span> Errors</span>
+    <span class="foot-item"><span class="material-symbols-outlined" style="color:#eec900;">warning</span><span id="foot-warnings">0</span> Warnings</span>
+  </div>
+  <div class="foot-group">
+    <span class="foot-item">UTF-8</span>
+    <span class="foot-item" id="foot-lang">Plain Text</span>
+    <span class="foot-item"><span class="material-symbols-outlined">notifications</span></span>
+  </div>
+</footer>
+
+<!-- CONFIG PANEL -->
+<div id="config-panel">
+  <div class="config-head">
+    <h3>Configuration</h3>
+    <button class="config-close" id="configClose">×</button>
+  </div>
+  <div class="config-body">
+    <div class="config-section">
+      <div class="sec-label"><span class="material-symbols-outlined">folder_open</span>Root Directory</div>
+      <input id="cfg-root" class="config-input" type="text" value="/" />
+    </div>
+    <div class="config-section">
+      <div class="sec-label"><span class="material-symbols-outlined">key</span>Environment Variables</div>
+      <div id="env-rows"></div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="config-mini-btn" id="addEnvBtn">+ Add</button>
+        <button class="config-mini-btn" id="pasteEnvBtn">Paste .env</button>
+      </div>
+    </div>
+    <div class="config-section">
+      <div class="sec-label"><span class="material-symbols-outlined">play_circle</span>Run Settings</div>
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;display:block;margin-bottom:5px;">Entry File</label>
+      <input id="cfg-entry" class="config-input" type="text" placeholder="e.g. index.js" style="margin-bottom:12px;" />
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;display:block;margin-bottom:5px;">Language</label>
+      <select id="cfg-lang" class="config-input">
+        <option value="">Auto Detect</option>
+        <option value="python">Python</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="java">Java</option>
+        <option value="go">Go</option>
+        <option value="cpp">C++</option>
+        <option value="c">C</option>
+        <option value="php">PHP</option>
+        <option value="ruby">Ruby</option>
+        <option value="rust">Rust</option>
+        <option value="bash">Bash</option>
+      </select>
+    </div>
+  </div>
+  <div class="config-foot">
+    <button class="btn-brutalist btn-red" id="applyConfigBtn" style="width:100%; justify-content:center;">Apply &amp; Close</button>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<!-- CDN LOADS — no async/defer, must execute before inline script -->
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<script>
+// ===== WEBGL BACKGROUND =====
+const bgCanvas = document.getElementById('bg-canvas');
+const gl = bgCanvas.getContext('webgl');
+if (gl) {
+  const vs = `attribute vec2 a_position; varying vec2 v_texCoord; void main() { v_texCoord = a_position * 0.5 + 0.5; v_texCoord.y = 1.0 - v_texCoord.y; gl_Position = vec4(a_position, 0.0, 1.0); }`;
+  const fs = `precision highp float; varying vec2 v_texCoord; uniform float u_time; uniform vec2 u_resolution; void main() { vec2 uv = v_texCoord; vec3 red = vec3(0.82, 0.17, 0.17); vec3 yellow = vec3(0.93, 0.79, 0.0); vec3 blue = vec3(0.12, 0.25, 0.69); vec3 black = vec3(0.1, 0.1, 0.1); vec3 offWhite = vec3(0.96, 0.96, 0.94); float grid = sin(uv.x * 12.0 + u_time * 0.4) * cos(uv.y * 12.0 - u_time * 0.2); float circle = 1.0 - smoothstep(0.18, 0.19, length(uv - vec2(0.2 + 0.05 * sin(u_time), 0.8 + 0.05 * cos(u_time)))); float square = (uv.x > 0.7 && uv.x < 0.85 && uv.y > 0.15 && uv.y < 0.3) ? 1.0 : 0.0; float line = smoothstep(0.008, 0.0, abs(uv.x - uv.y + 0.3 * sin(u_time * 0.5))); vec3 color = offWhite; color = mix(color, red, circle * 0.8); color = mix(color, yellow, square * 0.8); color = mix(color, blue, line * 0.6); color = mix(color, black, (1.0 - smoothstep(0.0, 0.015, abs(grid))) * 0.1); gl_FragColor = vec4(color, 1.0); }`;
+  function makeShader(t,s){const sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);return sh;}
+  const prog=gl.createProgram();
+  gl.attachShader(prog,makeShader(gl.VERTEX_SHADER,vs));
+  gl.attachShader(prog,makeShader(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(prog);gl.useProgram(prog);
+  const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+  const loc=gl.getAttribLocation(prog,'a_position');
+  gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  const tLoc=gl.getUniformLocation(prog,'u_time');
+  const rLoc=gl.getUniformLocation(prog,'u_resolution');
+  function render(t){bgCanvas.width=innerWidth;bgCanvas.height=innerHeight;gl.viewport(0,0,bgCanvas.width,bgCanvas.height);gl.uniform1f(tLoc,t*0.001);gl.uniform2f(rLoc,bgCanvas.width,bgCanvas.height);gl.drawArrays(gl.TRIANGLES,0,6);requestAnimationFrame(render);}
+  requestAnimationFrame(render);
+}
+
+// ===== STATE =====
+const state = {
+  currentRepo: null,
+  fileTree: [],
+  openFiles: {},
+  activeFile: null,
+  isLoading: false,
+  isRunning: false,
+  currentRunId: null,
+  config: { rootDir: '/', envVars: {}, entryFile: null, language: null },
+  supabase: null
+};
+
+window.term = null;
+
+// ===== SUPABASE INIT =====
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+window.addEventListener('load', () => {
+  if (window.supabase && SUPABASE_URL.indexOf('YOUR_') === -1) {
+    try { state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) {}
+  }
+  handleRoute();
+});
+
+// ===== JUDGE0 =====
+async function runWithJudge0(language, code) {
+  const JUDGE0_URL = 'https://ce.judge0.com';
+  const LANG_IDS = {
+    python: 71, javascript: 63, java: 62,
+    cpp: 54, c: 50, go: 60, ruby: 72,
+    php: 68, rust: 73, typescript: 74, bash: 46
+  };
+  const langId = LANG_IDS[language];
+  if (!langId) { showToast('Language not supported', 'warning'); return; }
+
+  const sub = await fetch(`${JUDGE0_URL}/submissions?base64_encoded=false&wait=true`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_code: code, language_id: langId })
+  });
+  const result = await sub.json();
+  if (result.stdout) termWrite(result.stdout);
+  if (result.stderr) termWrite('\x1b[31m' + result.stderr + '\x1b[0m');
+  if (result.compile_output) termWrite('\x1b[31m' + result.compile_output + '\x1b[0m');
+  termWrite('\r\n\x1b[32m✓ Done\x1b[0m\r\n');
+}
+
+// ===== FIX 2: TERMINAL INIT — polls until xterm CDN is ready =====
+function initTerminal() {
+  if (typeof Terminal === 'undefined') {
+    setTimeout(initTerminal, 100);
+    return;
+  }
+  window.term = new Terminal({
+    theme: { background: '#1a1a1a', foreground: '#f5f5f0', cursor: '#eec900', green: '#4ade80', red: '#d12b2b' },
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 13, lineHeight: 1.5,
+    cursorBlink: true, convertEol: true,
+    cols: 80, rows: 10
+  });
+
+  window.fitAddon = null;
+  if (typeof FitAddon !== 'undefined' && FitAddon.FitAddon) {
+    window.fitAddon = new FitAddon.FitAddon();
+    window.term.loadAddon(window.fitAddon);
+  }
+
+  const container = document.getElementById('terminal-container');
+  window.term.open(container);
+
+  setTimeout(() => {
+    if (window.fitAddon) { try { window.fitAddon.fit(); } catch (e) {} }
+    window.term.refresh(0, window.term.rows - 1);
+  }, 200);
+
+  window.term.write('\x1b[33mCODEVIEW TERMINAL\x1b[0m — ready.\r\n');
+}
+
+// safe terminal helpers
+function termWrite(s) { if (window.term) window.term.write(s); }
+function termClear() { if (window.term) window.term.clear(); }
+
+// ===== MONACO INIT =====
+function initMonaco() {
+  if (window.monaco) {
+    // Monaco already loaded (by host IDE), use it directly
+    createEditor()
+    return
+  }
+  // Load Monaco ourselves
+  const script = document.createElement('script')
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js'
+  script.onload = () => {
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }})
+    require(['vs/editor/editor.main'], createEditor)
+  }
+  document.head.appendChild(script)
+}
+
+function createEditor() {
+  if (window.monacoEditor) return
+  window.monacoEditor = monaco.editor.create(
+    document.getElementById('monaco-container'), {
+      theme: 'vs-dark',
+      fontSize: 14,
+      fontFamily: "'JetBrains Mono', monospace",
+      lineHeight: 22,
+      minimap: { enabled: true },
+      scrollBeyondLastLine: false,
+      wordWrap: 'on',
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      lineNumbers: 'on',
+      folding: true,
+      bracketPairColorization: { enabled: true },
+      padding: { top: 16 }
+    }
+  )
+}
+
+document.addEventListener('DOMContentLoaded', initTerminal);
+document.addEventListener('DOMContentLoaded', initMonaco);
+
+// ===== HELPERS =====
+function relativeTime(dateStr) {
+  const d = new Date(dateStr), now = new Date();
+  const s = Math.floor((now - d) / 1000);
+  if (isNaN(s)) return '';
+  const units = [['year',31536000],['month',2592000],['week',604800],['day',86400],['hour',3600],['minute',60]];
+  for (const [name, secs] of units) {
+    const v = Math.floor(s / secs);
+    if (v >= 1) return v + ' ' + name + (v > 1 ? 's' : '') + ' ago';
+  }
+  return 'just now';
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '0 B';
+  const u = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0) + ' ' + u[i];
+}
+
+function flattenTree(nodes, acc) {
+  acc = acc || [];
+  (nodes || []).forEach(n => {
+    acc.push(n);
+    if (n.children && n.children.length) flattenTree(n.children, acc);
+  });
+  return acc;
+}
+
+const EXT_LANG = {
+  py:'python', js:'javascript', mjs:'javascript', cjs:'javascript', jsx:'javascript',
+  ts:'typescript', tsx:'typescript', java:'java', go:'go', cpp:'cpp', cc:'cpp', cxx:'cpp',
+  hpp:'cpp', h:'c', c:'c', php:'php', rb:'ruby', rs:'rust', sh:'bash', bash:'bash'
+};
+
+function detectLanguage(tree) {
+  const files = flattenTree(tree).filter(n => n.type === 'file');
+  const counts = {};
+  files.forEach(f => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    const lang = EXT_LANG[ext];
+    if (lang) counts[lang] = (counts[lang] || 0) + 1;
+  });
+  let best = null, max = 0;
+  for (const k in counts) if (counts[k] > max) { max = counts[k]; best = k; }
+  return best;
+}
+
+function detectEntryFile(tree) {
+  const files = flattenTree(tree).filter(n => n.type === 'file');
+  const candidates = ['main.py','app.py','index.js','main.js','app.js','server.js','index.ts','main.ts','main.go','main.java','main.cpp','main.c','main.rs','index.php','main.rb','main.sh'];
+  for (const c of candidates) {
+    const hit = files.find(f => f.name.toLowerCase() === c);
+    if (hit) return hit.path;
+  }
+  return files.length ? files[0].path : null;
+}
+
+function parseEnvFile(content) {
+  const out = {};
+  (content || '').split('\n').forEach(line => {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) return;
+    const eq = t.indexOf('=');
+    if (eq === -1) return;
+    let key = t.slice(0, eq).trim().replace(/^export\s+/, '');
+    let val = t.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+    if (key) out[key] = val;
+  });
+  return out;
+}
+
+function getMonacoLang(ext) {
+  const map = {
+    py:'python', js:'javascript', mjs:'javascript', cjs:'javascript', jsx:'javascript',
+    ts:'typescript', tsx:'typescript', java:'java', go:'go', cpp:'cpp', cc:'cpp', cxx:'cpp',
+    h:'c', hpp:'cpp', c:'c', php:'php', rb:'ruby', rs:'rust', sh:'shell', bash:'shell',
+    html:'html', htm:'html', css:'css', scss:'scss', json:'json', md:'markdown', markdown:'markdown',
+    yml:'yaml', yaml:'yaml', xml:'xml', sql:'sql', toml:'ini', ini:'ini', txt:'plaintext'
+  };
+  return map[(ext || '').toLowerCase()] || 'plaintext';
+}
+
+function getFileColor(ext) {
+  const map = {
+    js:'#eec900', mjs:'#eec900', cjs:'#eec900', jsx:'#eec900', json:'#eec900',
+    ts:'#1e40af', tsx:'#1e40af', css:'#1e40af', scss:'#1e40af',
+    html:'#d12b2b', htm:'#d12b2b', md:'#d12b2b', markdown:'#d12b2b',
+    py:'#1e40af', go:'#1e40af', java:'#d12b2b', rb:'#d12b2b', rs:'#d12b2b',
+    c:'#1a1a1a', cpp:'#1a1a1a', h:'#1a1a1a', php:'#1e40af', sh:'#1a1a1a',
+    yml:'#eec900', yaml:'#eec900'
+  };
+  return map[(ext || '').toLowerCase()] || '#1a1a1a';
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  return Promise.resolve();
+}
+
+// ===== TOAST =====
+function showToast(msg, type) {
+  type = type || 'success';
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.classList.add('out');
+    setTimeout(() => t.remove(), 260);
+  }, 3000);
+}
+
+// ===== LOAD REPO =====
+async function loadRepo(url) {
+  url = url || document.getElementById('url-input').value.trim();
+  if (!url) { showToast('Enter a repo URL', 'warning'); return; }
+  if (state.isLoading) return;
+  state.isLoading = true;
+  const loadBtn = document.getElementById('loadBtn');
+  loadBtn.disabled = true;
+  loadBtn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span>LOADING';
+  try {
+    const res = await fetch('/api/repo?url=' + encodeURIComponent(url));
+    const data = await res.json();
+    if (!res.ok || data.error) { showToast(data.error || 'Failed to load repo', 'error'); return; }
+    state.currentRepo = data.repo;
+    state.fileTree = data.tree || [];
+    document.getElementById('url-input').value = data.repo.html_url || url;
+    renderStatsBar(data.repo);
+    renderTree();
+    document.getElementById('landing-canvas').style.display = 'none';
+    document.getElementById('editor-canvas').style.display = 'flex';
+    document.getElementById('shareBtn').style.display = 'inline-flex';
+    document.getElementById('runBtn').disabled = false;
+    document.getElementById('tree-search-wrap').style.display = 'block';
+    document.getElementById('foot-branch-name').textContent = data.repo.default_branch || 'main';
+    showToast('Repo loaded: ' + data.repo.name, 'success');
+    if (window.monacoEditor) window.monacoEditor.layout();
+    if (window.fitAddon) { try { window.fitAddon.fit(); } catch (e) {} }
+    termClear();
+    termWrite('\x1b[33mLoaded ' + data.repo.full_name + '\x1b[0m\r\n');
+  } catch (e) {
+    showToast('Network error: ' + e.message, 'error');
+  } finally {
+    state.isLoading = false;
+    loadBtn.disabled = false;
+    loadBtn.innerHTML = '<span class="material-symbols-outlined">download</span>LOAD';
+  }
+}
+
+function renderStatsBar(repo) {
+  const bar = document.getElementById('stats-bar');
+  bar.style.display = 'flex';
+  document.getElementById('main-layout').classList.add('with-stats');
+  bar.innerHTML = '';
+  const html = [];
+  if (repo.avatar) html.push('<img class="avatar" src="' + repo.avatar + '" alt="">');
+  html.push('<span class="repo-name">' + escapeHtml(repo.full_name || repo.name) + '</span>');
+  if (repo.description) html.push('<span class="repo-desc">' + escapeHtml(repo.description) + '</span>');
+  html.push('<span class="stat"><span class="material-symbols-outlined">star</span>' + (repo.stars || 0) + '</span>');
+  html.push('<span class="stat"><span class="material-symbols-outlined">fork_right</span>' + (repo.forks || 0) + '</span>');
+  if (repo.language) html.push('<span class="stat"><span class="material-symbols-outlined">code</span>' + escapeHtml(repo.language) + '</span>');
+  html.push('<span class="cached-badge">Cached</span>');
+  html.push('<a class="gh-link" href="' + (repo.html_url || '#') + '" target="_blank" rel="noopener">GitHub<span class="material-symbols-outlined">open_in_new</span></a>');
+  bar.innerHTML = html.join('');
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ===== TREE =====
+function renderTree() {
+  const container = document.getElementById('dynamic-tree');
+  container.innerHTML = '';
+  buildTree(state.fileTree, container, 0);
+}
+
+function buildTree(nodes, container, depth) {
+  (nodes || []).forEach(node => {
+    const wrap = document.createElement('div');
+    wrap.className = 'tree-node';
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+    row.dataset.path = node.path;
+    row.dataset.name = node.name.toLowerCase();
+
+    if (node.type === 'dir') {
+      row.innerHTML = '<span class="material-symbols-outlined" style="color:#1e40af;">folder</span>' +
+        '<span class="tree-name">' + escapeHtml(node.name) + '</span>' +
+        '<span class="material-symbols-outlined chevron">chevron_right</span>';
+      const childWrap = document.createElement('div');
+      childWrap.className = 'tree-children';
+      childWrap.style.display = 'none';
+      buildTree(node.children || [], childWrap, depth + 1);
+      row.addEventListener('click', e => {
+        e.stopPropagation();
+        const open = childWrap.style.display === 'none';
+        childWrap.style.display = open ? 'block' : 'none';
+        row.classList.toggle('open', open);
+        const icon = row.querySelector('.material-symbols-outlined');
+        icon.textContent = open ? 'folder_open' : 'folder';
+      });
+      wrap.appendChild(row);
+      wrap.appendChild(childWrap);
+    } else {
+      const ext = node.name.split('.').pop();
+      row.innerHTML = '<span class="material-symbols-outlined" style="color:' + getFileColor(ext) + ';">description</span>' +
+        '<span class="tree-name">' + escapeHtml(node.name) + '</span>';
+      row.addEventListener('click', e => { e.stopPropagation(); openFile(node.path); });
+      wrap.appendChild(row);
+    }
+    container.appendChild(wrap);
+  });
+}
+
+// tree search filter
+document.getElementById('tree-search').addEventListener('input', function () {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('#dynamic-tree .tree-node').forEach(node => {
+    const row = node.querySelector('.tree-row');
+    if (!row) return;
+    const isFile = !node.querySelector('.tree-children');
+    if (isFile) {
+      node.style.display = !q || row.dataset.name.indexOf(q) !== -1 ? '' : 'none';
+    }
+  });
+  document.querySelectorAll('#dynamic-tree .tree-node').forEach(node => {
+    const childWrap = node.querySelector('.tree-children');
+    if (!childWrap) return;
+    const hasVisible = Array.from(childWrap.querySelectorAll('.tree-node')).some(c => c.style.display !== 'none' && !c.querySelector('.tree-children'));
+    if (q && hasVisible) { childWrap.style.display = 'block'; node.style.display = ''; }
+    else if (q && !hasVisible) { node.style.display = 'none'; }
+    else { node.style.display = ''; }
+  });
+});
+
+// ===== OPEN FILE =====
+async function openFile(path) {
+  if (!state.currentRepo) return;
+  const repo = state.currentRepo;
+  markActiveTree(path);
+  if (state.openFiles[path]) { activateTab(path); return; }
+  try {
+    const url = '/api/file?owner=' + encodeURIComponent(repo.owner) + '&repo=' + encodeURIComponent(repo.name) +
+      '&branch=' + encodeURIComponent(repo.default_branch) + '&path=' + encodeURIComponent(path);
+    const res = await fetch(url);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); showToast(d.error || 'Failed to open file', 'error'); return; }
+    const content = await res.text();
+    const ext = path.split('.').pop();
+    const lang = getMonacoLang(ext);
+    let model = null;
+    if (window.monaco) model = monaco.editor.createModel(content, lang);
+    state.openFiles[path] = { content, model, lang, ext };
+    addTab(path);
+    activateTab(path);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+function addTab(path) {
+  const bar = document.getElementById('tabs-bar');
+  const name = path.split('/').pop();
+  const ext = name.split('.').pop();
+  const tab = document.createElement('div');
+  tab.className = 'tab';
+  tab.dataset.path = path;
+  tab.innerHTML = '<span class="material-symbols-outlined" style="color:' + getFileColor(ext) + ';">description</span>' +
+    '<span>' + escapeHtml(name) + '</span>' +
+    '<span class="material-symbols-outlined close-tab">close</span>';
+  tab.addEventListener('click', e => {
+    if (e.target.classList.contains('close-tab')) { e.stopPropagation(); closeTab(path); return; }
+    activateTab(path);
+  });
+  bar.appendChild(tab);
+}
+
+function activateTab(path) {
+  state.activeFile = path;
+  document.querySelectorAll('#tabs-bar .tab').forEach(t => t.classList.toggle('active', t.dataset.path === path));
+  const f = state.openFiles[path];
+  if (f && window.monacoEditor) {
+    if (f.model) window.monacoEditor.setModel(f.model);
+    else window.monacoEditor.setValue(f.content);
+    window.monacoEditor.layout();
+  }
+  document.getElementById('foot-lang').textContent = (f && f.lang ? f.lang : 'plaintext');
+  markActiveTree(path);
+  maybePreview(path);
+}
+
+function closeTab(path) {
+  const f = state.openFiles[path];
+  if (f && f.model) f.model.dispose();
+  delete state.openFiles[path];
+  const tab = document.querySelector('#tabs-bar .tab[data-path="' + cssEscape(path) + '"]');
+  if (tab) tab.remove();
+  if (state.activeFile === path) {
+    const remaining = Object.keys(state.openFiles);
+    if (remaining.length) activateTab(remaining[remaining.length - 1]);
+    else { state.activeFile = null; if (window.monacoEditor) window.monacoEditor.setValue(''); }
+  }
+}
+
+function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+function markActiveTree(path) {
+  document.querySelectorAll('#dynamic-tree .tree-row').forEach(r => {
+    r.classList.toggle('active-nav-item', r.dataset.path === path && !r.querySelector('.chevron'));
+  });
+}
+
+function maybePreview(path) {
+  const f = state.openFiles[path];
+  const panel = document.getElementById('preview-panel');
+  if (f && (f.ext === 'html' || f.ext === 'htm')) {
+    panel.style.display = 'flex';
+    const content = f.model ? f.model.getValue() : f.content;
+    document.getElementById('preview-iframe').srcdoc = content;
+  } else {
+    panel.style.display = 'none';
+  }
+  if (window.monacoEditor) window.monacoEditor.layout();
+}
+
+// ===== RUN CODE =====
+async function runCode() {
+  if (state.isRunning) { stopRun(); return; }
+
+  const lang = state.config.language || detectLanguage(state.fileTree);
+  const entryFile = state.config.entryFile || detectEntryFile(state.fileTree);
+
+  const files = Object.entries(state.openFiles).map(([path, f]) => ({
+    name: path.split('/').pop(),
+    content: f.model ? f.model.getValue() : f.content
+  }));
+
+  if (!files.length) { showToast('Open a file first', 'warning'); return; }
+
+  // Put entry file first
+  if (entryFile) {
+    const entryName = entryFile.split('/').pop();
+    files.sort((a, b) => (a.name === entryName ? -1 : b.name === entryName ? 1 : 0));
+  }
+
+  // Concatenate all open file contents as the code to run
+  const code = files.map(f => f.content).join('\n');
+
+  setRunning(true);
+  state.currentRunId = Date.now();
+  const runId = state.currentRunId;
+  termClear();
+  termWrite('\r\n\x1b[33m▶ Running...\x1b[0m\r\n');
+
+  try {
+    await runWithJudge0(lang, code);
+    if (runId === state.currentRunId) updateDiagnostics(0);
+  } catch (e) {
+    termWrite('\x1b[31m✗ ' + e.message + '\x1b[0m\r\n');
+    if (runId === state.currentRunId) updateDiagnostics(1);
+  } finally {
+    if (runId === state.currentRunId) setRunning(false);
+  }
+}
+
+function stopRun() {
+  state.currentRunId = null;
+  termWrite('\r\n\x1b[31m■ Stopped\x1b[0m\r\n');
+  setRunning(false);
+}
+
+function updateDiagnostics(code) {
+  document.getElementById('foot-errors').textContent = code === 0 ? '0' : '1';
+}
+
+function setRunning(val) {
+  state.isRunning = val;
+  const runBtn = document.getElementById('runBtn');
+  const indicator = document.getElementById('running-indicator');
+  if (val) {
+    runBtn.innerHTML = '◼ STOP';
+    runBtn.classList.add('pulse-active');
+    indicator.style.display = 'inline';
+  } else {
+    runBtn.innerHTML = '<span class="material-symbols-outlined">play_arrow</span> RUN';
+    runBtn.classList.remove('pulse-active');
+    indicator.style.display = 'none';
+  }
+}
+
+// ===== SHARE =====
+async function shareRepo() {
+  if (!state.currentRepo) { showToast('Load a repo first', 'warning'); return; }
+  const url = state.currentRepo.html_url;
+  if (!state.supabase) {
+    await copyToClipboard(url);
+    showToast('🔗 REPO URL COPIED!', 'success');
+    return;
+  }
+  try {
+    const id = Math.random().toString(36).slice(2, 8);
+    const { error } = await state.supabase.from('shares').insert({
+      id, repo_url: url, full_name: state.currentRepo.full_name, config: state.config
+    });
+    if (error) throw error;
+    const shareUrl = location.origin + '/s/' + id;
+    await copyToClipboard(shareUrl);
+    showToast('🔗 LINK COPIED!', 'success');
+  } catch (e) {
+    await copyToClipboard(url);
+    showToast('🔗 REPO URL COPIED!', 'success');
+  }
+}
+
+// ===== URL ROUTING =====
+async function handleRoute() {
+  const m = location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/);
+  if (!m) return;
+  const id = m[1];
+  if (!state.supabase) return;
+  try {
+    const { data, error } = await state.supabase.from('shares').select('*').eq('id', id).single();
+    if (error || !data) { showToast('Share not found', 'error'); return; }
+    if (data.config) state.config = Object.assign(state.config, data.config);
+    loadRepo(data.repo_url);
+  } catch (e) {
+    showToast('Failed to load share', 'error');
+  }
+}
+
+// ===== CONFIG PANEL =====
+function openConfig() {
+  document.getElementById('cfg-root').value = state.config.rootDir || '/';
+  document.getElementById('cfg-entry').value = state.config.entryFile || '';
+  document.getElementById('cfg-lang').value = state.config.language || '';
+  renderEnvRows();
+  document.getElementById('config-panel').classList.add('open');
+}
+function closeConfig() { document.getElementById('config-panel').classList.remove('open'); }
+
+function renderEnvRows() {
+  const wrap = document.getElementById('env-rows');
+  wrap.innerHTML = '';
+  const entries = Object.entries(state.config.envVars);
+  if (!entries.length) addEnvRow('', '');
+  else entries.forEach(([k, v]) => addEnvRow(k, v));
+}
+
+function addEnvRow(key, val) {
+  const wrap = document.getElementById('env-rows');
+  const row = document.createElement('div');
+  row.className = 'env-row';
+  row.innerHTML = '<input class="env-key" placeholder="KEY" value="' + escapeHtml(key || '') + '">' +
+    '<input class="env-val" placeholder="value" value="' + escapeHtml(val || '') + '">' +
+    '<button class="env-del">×</button>';
+  row.querySelector('.env-del').addEventListener('click', () => row.remove());
+  wrap.appendChild(row);
+}
+
+function collectEnvVars() {
+  const out = {};
+  document.querySelectorAll('#env-rows .env-row').forEach(r => {
+    const k = r.querySelector('.env-key').value.trim();
+    const v = r.querySelector('.env-val').value;
+    if (k) out[k] = v;
+  });
+  return out;
+}
+
+function applyConfig() {
+  state.config.rootDir = document.getElementById('cfg-root').value.trim() || '/';
+  state.config.entryFile = document.getElementById('cfg-entry').value.trim() || null;
+  state.config.language = document.getElementById('cfg-lang').value || null;
+  state.config.envVars = collectEnvVars();
+  closeConfig();
+  showToast('Config applied', 'success');
+}
+
+// ===== EVENT WIRING =====
+document.getElementById('loadBtn').addEventListener('click', () => loadRepo());
+document.getElementById('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadRepo(); });
+document.getElementById('runBtn').addEventListener('click', runCode);
+document.getElementById('shareBtn').addEventListener('click', shareRepo);
+document.getElementById('configBtn').addEventListener('click', openConfig);
+document.getElementById('configClose').addEventListener('click', closeConfig);
+document.getElementById('applyConfigBtn').addEventListener('click', applyConfig);
+document.getElementById('addEnvBtn').addEventListener('click', () => addEnvRow('', ''));
+document.getElementById('clearTermBtn').addEventListener('click', () => {
+  termClear();
+  if (window.fitAddon) { try { window.fitAddon.fit(); } catch (e) {} }
+  termWrite('\x1b[33mCODEVIEW TERMINAL\x1b[0m — ready.\r\n');
+});
+document.getElementById('pasteEnvBtn').addEventListener('click', async () => {
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch (e) { text = prompt('Paste your .env contents:') || ''; }
+  const parsed = parseEnvFile(text);
+  Object.assign(state.config.envVars, parsed);
+  renderEnvRows();
+  showToast(Object.keys(parsed).length + ' vars added', 'success');
+});
+document.getElementById('menu-toggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+window.addEventListener('resize', () => {
+  if (window.monacoEditor) window.monacoEditor.layout();
+  if (window.fitAddon) { try { window.fitAddon.fit(); } catch (e) {} }
+});
+</script>
+</body>
+</html>
