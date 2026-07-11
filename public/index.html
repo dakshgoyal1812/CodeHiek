@@ -165,9 +165,33 @@
   .tab .close-tab:hover { opacity: 1; }
 
   #monaco-container { flex: 1; min-height: 0; }
+  #terminal-resize-handle {
+    height: 6px;
+    background: #1a1a1a;
+    cursor: ns-resize;
+    flex-shrink: 0;
+    border-top: 2px solid #eec900;
+    border-bottom: 2px solid #eec900;
+    transition: background 0.15s;
+  }
+  #terminal-resize-handle:hover { background: #eec900; }
+  #preview-resize-handle {
+    width: 6px;
+    height: 100%;
+    background: #1a1a1a;
+    cursor: ew-resize;
+    flex-shrink: 0;
+    border-left: 2px solid #eec900;
+    border-right: 2px solid #eec900;
+    transition: background 0.15s;
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  #preview-resize-handle:hover { background: #eec900; }
 
   /* PREVIEW PANEL */
-  #preview-panel { width: 33%; min-width: 280px; display: none; flex-direction: column; border-left: 4px solid #1a1a1a; }
+  #preview-panel { width: 33%; min-width: 280px; display: none; flex-direction: column; border-left: 4px solid #1a1a1a; position: relative; }
   .preview-head { height: 36px; background: #eec900; border-bottom: 3px solid #1a1a1a; display: flex; align-items: center; padding: 0 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
   #preview-iframe { flex: 1; border: none; background: #ffffff; }
 
@@ -294,6 +318,7 @@
     <button id="loadBtn" class="btn-brutalist btn-red"><span class="material-symbols-outlined">download</span>LOAD</button>
     <button id="shareBtn" class="btn-brutalist btn-blue" style="display:none;"><span class="material-symbols-outlined">share</span>SHARE</button>
     <button id="configBtn" class="btn-brutalist icon-btn" title="Config"><span class="material-symbols-outlined">tune</span></button>
+    <button id="previewToggleBtn" class="btn-brutalist icon-btn" title="Toggle Preview" style="display:none;"><span class="material-symbols-outlined">preview</span></button>
     <div class="header-divider"></div>
     <button id="runBtn" class="btn-brutalist" disabled><span class="material-symbols-outlined">play_arrow</span>RUN</button>
   </div>
@@ -346,10 +371,12 @@
           <div id="monaco-container"></div>
         </div>
         <div id="preview-panel">
+          <div id="preview-resize-handle"></div>
           <div class="preview-head">Live Preview</div>
           <iframe id="preview-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
         </div>
       </div>
+      <div id="terminal-resize-handle"></div>
       <div id="terminal-panel">
         <div class="terminal-head">
           <span class="term-title">Terminal</span>
@@ -716,6 +743,7 @@ async function loadRepo(url) {
     document.getElementById('shareBtn').style.display = 'inline-flex';
     document.getElementById('runBtn').disabled = false;
     document.getElementById('tree-search-wrap').style.display = 'block';
+    document.getElementById('previewToggleBtn').style.display = 'inline-flex';
     document.getElementById('foot-branch-name').textContent = data.repo.default_branch || 'main';
     showToast('Repo loaded: ' + data.repo.name, 'success');
     if (window.monacoEditor) window.monacoEditor.layout();
@@ -1089,6 +1117,67 @@ document.getElementById('menu-toggle').addEventListener('click', () => {
 window.addEventListener('resize', () => {
   if (window.monacoEditor) window.monacoEditor.layout();
   if (window.fitAddon) { try { window.fitAddon.fit(); } catch (e) {} }
+});
+
+// ===== TERMINAL RESIZE HANDLE =====
+let termDragging = false, termStartY = 0, termStartH = 0;
+document.getElementById('terminal-resize-handle')
+  .addEventListener('mousedown', (e) => {
+    termDragging = true;
+    termStartY = e.clientY;
+    termStartH = document.getElementById('terminal-panel').offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  });
+document.addEventListener('mousemove', (e) => {
+  if (!termDragging) return;
+  const diff = termStartY - e.clientY;
+  const newH = Math.max(60, Math.min(500, termStartH + diff));
+  document.getElementById('terminal-panel').style.height = newH + 'px';
+  document.getElementById('terminal-container').style.height = (newH - 34) + 'px';
+  if (window.fitAddon) { try { window.fitAddon.fit(); } catch(e) {} }
+  if (window.monacoEditor) window.monacoEditor.layout();
+});
+document.addEventListener('mouseup', () => {
+  if (!termDragging) return;
+  termDragging = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// ===== PREVIEW RESIZE HANDLE =====
+let prevDragging = false, prevStartX = 0, prevStartW = 0;
+document.getElementById('preview-resize-handle')
+  .addEventListener('mousedown', (e) => {
+    prevDragging = true;
+    prevStartX = e.clientX;
+    prevStartW = document.getElementById('preview-panel').offsetWidth;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+document.addEventListener('mousemove', (e) => {
+  if (!prevDragging) return;
+  const diff = prevStartX - e.clientX;
+  const newW = Math.max(200, Math.min(700, prevStartW + diff));
+  document.getElementById('preview-panel').style.width = newW + 'px';
+  if (window.monacoEditor) window.monacoEditor.layout();
+});
+document.addEventListener('mouseup', () => {
+  if (!prevDragging) return;
+  prevDragging = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// ===== PREVIEW PANEL TOGGLE =====
+document.getElementById('previewToggleBtn').addEventListener('click', () => {
+  const panel = document.getElementById('preview-panel');
+  const isVisible = panel.style.display === 'flex';
+  panel.style.display = isVisible ? 'none' : 'flex';
+  const icon = document.getElementById('previewToggleBtn').querySelector('.material-symbols-outlined');
+  icon.textContent = isVisible ? 'preview' : 'hide_image';
+  if (window.monacoEditor) window.monacoEditor.layout();
 });
 </script>
 </body>

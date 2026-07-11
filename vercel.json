@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/api/repo", "destination": "/api/repo" },
-    { "source": "/api/file", "destination": "/api/file" },
-    { "source": "/api/readme", "destination": "/api/readme" },
-    { "source": "/(.*)", "destination": "/public/index.html" }
-  ]
-}
